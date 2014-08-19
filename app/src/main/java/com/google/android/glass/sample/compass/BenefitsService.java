@@ -1,23 +1,6 @@
-/*
- * Copyright (C) 2013 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.google.android.glass.sample.compass;
 
 import com.google.android.glass.sample.compass.model.Landmarks;
-import com.google.android.glass.sample.compass.model.Place;
 import com.google.android.glass.sample.compass.util.MathUtils;
 import com.google.android.glass.timeline.LiveCard;
 import com.google.android.glass.timeline.LiveCard.PublishMode;
@@ -33,15 +16,9 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.speech.tts.TextToSpeech;
 
-import java.util.List;
+public class BenefitsService extends Service {
 
-/**
- * The main application service that manages the lifetime of the compass live card and the objects
- * that help out with orientation tracking and landmarks.
- */
-public class CompassService extends Service {
-
-    private static final String LIVE_CARD_TAG = "compass";
+    private static final String LIVE_CARD_TAG = "benefits";
 
     /**
      * A binder that gives other components access to the speech capabilities provided by the
@@ -49,10 +26,10 @@ public class CompassService extends Service {
      */
     public class CompassBinder extends Binder {
         /**
-         * Read the current heading aloud using the text-to-speech engine.
+         * Read the current observed benefit description aloud.
          */
-        public void readHeadingAloud() {
-            float heading = mOrientationManager.getHeading();
+        public void readBenefitDescription() {
+            float heading = orientationManager.getHeading();
 
             Resources res = getResources();
             String[] spokenDirections = res.getStringArray(R.array.spoken_directions);
@@ -67,18 +44,18 @@ public class CompassService extends Service {
             }
 
             String headingText = res.getString(headingFormat, roundedHeading, directionName);
-            mSpeech.speak(headingText, TextToSpeech.QUEUE_FLUSH, null);
+            speech.speak(headingText, TextToSpeech.QUEUE_FLUSH, null);
         }
     }
 
-    private final CompassBinder mBinder = new CompassBinder();
+    private final CompassBinder binder = new CompassBinder();
 
-    private OrientationManager mOrientationManager;
-    private Landmarks mLandmarks;
-    private TextToSpeech mSpeech;
+    private OrientationManager orientationManager;
+    private Landmarks landmarks;
+    private TextToSpeech speech;
 
-    private LiveCard mLiveCard;
-    private CompassRenderer mRenderer;
+    private LiveCard liveCard;
+    private CompassRenderer compassRenderer;
 
     @Override
     public void onCreate() {
@@ -87,7 +64,7 @@ public class CompassService extends Service {
         // Even though the text-to-speech engine is only used in response to a menu action, we
         // initialize it when the application starts so that we avoid delays that could occur
         // if we waited until it was needed to start it up.
-        mSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+        speech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {
                 // Do nothing.
@@ -99,31 +76,31 @@ public class CompassService extends Service {
         LocationManager locationManager =
                 (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 
-        mOrientationManager = new OrientationManager(sensorManager, locationManager);
-        mLandmarks = new Landmarks(this);
+        orientationManager = new OrientationManager(sensorManager, locationManager);
+        landmarks = new Landmarks(this);
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        return mBinder;
+        return binder;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (mLiveCard == null) {
-            mLiveCard = new LiveCard(this, LIVE_CARD_TAG);
-            mRenderer = new CompassRenderer(this, mOrientationManager, mLandmarks);
+        if (liveCard == null) {
+            liveCard = new LiveCard(this, LIVE_CARD_TAG);
+            compassRenderer = new CompassRenderer(this, orientationManager, landmarks);
 
-            mLiveCard.setDirectRenderingEnabled(true).getSurfaceHolder().addCallback(mRenderer);
+            liveCard.setDirectRenderingEnabled(true).getSurfaceHolder().addCallback(compassRenderer);
 
             // Display the options menu when the live card is tapped.
-            Intent menuIntent = new Intent(this, CompassMenuActivity.class);
+            Intent menuIntent = new Intent(this, BenefitsMenuActivity.class);
             menuIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            mLiveCard.setAction(PendingIntent.getActivity(this, 0, menuIntent, 0));
-            mLiveCard.attach(this);
-            mLiveCard.publish(PublishMode.REVEAL);
+            liveCard.setAction(PendingIntent.getActivity(this, 0, menuIntent, 0));
+            liveCard.attach(this);
+            liveCard.publish(PublishMode.REVEAL);
         } else {
-            mLiveCard.navigate();
+            liveCard.navigate();
         }
 
         return START_STICKY;
@@ -131,16 +108,16 @@ public class CompassService extends Service {
 
     @Override
     public void onDestroy() {
-        if (mLiveCard != null && mLiveCard.isPublished()) {
-            mLiveCard.unpublish();
-            mLiveCard = null;
+        if (liveCard != null && liveCard.isPublished()) {
+            liveCard.unpublish();
+            liveCard = null;
         }
 
-        mSpeech.shutdown();
+        speech.shutdown();
 
-        mSpeech = null;
-        mOrientationManager = null;
-        mLandmarks = null;
+        speech = null;
+        orientationManager = null;
+        landmarks = null;
 
         super.onDestroy();
     }

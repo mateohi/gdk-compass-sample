@@ -1,19 +1,3 @@
-/*
- * Copyright (C) 2013 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.google.android.glass.sample.compass;
 
 import com.google.android.glass.sample.compass.model.Landmarks;
@@ -33,7 +17,6 @@ import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import java.io.File;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -58,32 +41,31 @@ public class CompassRenderer implements DirectRenderingCallback {
     /** The duration, in milliseconds, of one frame. */
     private static final long FRAME_TIME_MILLIS = TimeUnit.SECONDS.toMillis(1) / REFRESH_RATE_FPS;
 
-    private SurfaceHolder mHolder;
-    private boolean mTooSteep;
-    private boolean mInterference;
-    private RenderThread mRenderThread;
-    private int mSurfaceWidth;
-    private int mSurfaceHeight;
+    private SurfaceHolder surfaceHolder;
+    private boolean tooSteep;
+    private boolean interference;
+    private RenderThread renderThread;
+    private int surfaceWidth;
+    private int surfaceHeight;
 
-    private boolean mRenderingPaused;
+    private boolean renderingPaused;
 
-    private final FrameLayout mLayout;
-    private final CompassView mCompassView;
-    private final RelativeLayout mTipsContainer;
-    private final TextView mTipsView;
-    private final OrientationManager mOrientationManager;
-    private final Landmarks mLandmarks;
+    private final FrameLayout frameLayout;
+    private final CompassView compassView;
+    private final RelativeLayout tipsContainer;
+    private final TextView tipsView;
+    private final OrientationManager orientationManager;
+    private final Landmarks landmarks;
 
-    private final OrientationManager.OnChangedListener mCompassListener =
-            new OrientationManager.OnChangedListener() {
+    private final BenefitsCompassListener benefitsCompassListener = new BenefitsCompassListener() {
 
         @Override
         public void onOrientationChanged(OrientationManager orientationManager) {
-            mCompassView.setHeading(orientationManager.getHeading());
+            compassView.setHeading(orientationManager.getHeading());
 
-            boolean oldTooSteep = mTooSteep;
-            mTooSteep = (Math.abs(orientationManager.getPitch()) > TOO_STEEP_PITCH_DEGREES);
-            if (mTooSteep != oldTooSteep) {
+            boolean oldTooSteep = tooSteep;
+            tooSteep = (Math.abs(orientationManager.getPitch()) > TOO_STEEP_PITCH_DEGREES);
+            if (tooSteep != oldTooSteep) {
                 updateTipsView();
             }
         }
@@ -91,14 +73,14 @@ public class CompassRenderer implements DirectRenderingCallback {
         @Override
         public void onLocationChanged(OrientationManager orientationManager) {
             Location location = orientationManager.getLocation();
-            List<Place> places = mLandmarks.getNearbyLandmarks(
+            List<Place> places = landmarks.getNearbyLandmarks(
                     location.getLatitude(), location.getLongitude());
-            mCompassView.setNearbyPlaces(places);
+            compassView.setNearbyPlaces(places);
         }
 
         @Override
         public void onAccuracyChanged(OrientationManager orientationManager) {
-            mInterference = orientationManager.hasInterference();
+            interference = orientationManager.hasInterference();
             updateTipsView();
         }
     };
@@ -110,70 +92,70 @@ public class CompassRenderer implements DirectRenderingCallback {
     public CompassRenderer(Context context, OrientationManager orientationManager,
                 Landmarks landmarks) {
         LayoutInflater inflater = LayoutInflater.from(context);
-        mLayout = (FrameLayout) inflater.inflate(R.layout.compass, null);
-        mLayout.setWillNotDraw(false);
+        frameLayout = (FrameLayout) inflater.inflate(R.layout.compass, null);
+        frameLayout.setWillNotDraw(false);
 
-        mCompassView = (CompassView) mLayout.findViewById(R.id.compass);
-        mTipsContainer = (RelativeLayout) mLayout.findViewById(R.id.tips_container);
-        mTipsView = (TextView) mLayout.findViewById(R.id.tips_view);
+        compassView = (CompassView) frameLayout.findViewById(R.id.compass);
+        tipsContainer = (RelativeLayout) frameLayout.findViewById(R.id.tips_container);
+        tipsView = (TextView) frameLayout.findViewById(R.id.tips_view);
 
-        mOrientationManager = orientationManager;
-        mLandmarks = landmarks;
+        this.orientationManager = orientationManager;
+        this.landmarks = landmarks;
 
-        mCompassView.setOrientationManager(mOrientationManager);
+        compassView.setOrientationManager(this.orientationManager);
     }
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        mSurfaceWidth = width;
-        mSurfaceHeight = height;
+        surfaceWidth = width;
+        surfaceHeight = height;
         doLayout();
     }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         // The creation of a new Surface implicitly resumes the rendering.
-        mRenderingPaused = false;
-        mHolder = holder;
+        renderingPaused = false;
+        surfaceHolder = holder;
         updateRenderingState();
     }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
-        mHolder = null;
+        surfaceHolder = null;
         updateRenderingState();
     }
 
     @Override
     public void renderingPaused(SurfaceHolder holder, boolean paused) {
-        mRenderingPaused = paused;
+        renderingPaused = paused;
         updateRenderingState();
     }
 
     private void updateRenderingState() {
-        boolean shouldRender = (mHolder != null) && !mRenderingPaused;
-        boolean isRendering = (mRenderThread != null);
+        boolean shouldRender = (surfaceHolder != null) && !renderingPaused;
+        boolean isRendering = (renderThread != null);
 
         if (shouldRender != isRendering) {
             if (shouldRender) {
-                mOrientationManager.addOnChangedListener(mCompassListener);
-                mOrientationManager.start();
+                orientationManager.addOnChangedListener(benefitsCompassListener);
+                orientationManager.start();
 
-                if (mOrientationManager.hasLocation()) {
-                    Location location = mOrientationManager.getLocation();
-                    List<Place> nearbyPlaces = mLandmarks.getNearbyLandmarks(
+                if (orientationManager.hasLocation()) {
+                    Location location = orientationManager.getLocation();
+                    List<Place> nearbyPlaces = landmarks.getNearbyLandmarks(
                         location.getLatitude(), location.getLongitude());
-                    mCompassView.setNearbyPlaces(nearbyPlaces);
+                    compassView.setNearbyPlaces(nearbyPlaces);
                 }
 
-                mRenderThread = new RenderThread();
-                mRenderThread.start();
+                renderThread = new RenderThread();
+                renderThread.start();
             } else {
-                mRenderThread.quit();
-                mRenderThread = null;
+                renderThread.quit();
+                renderThread = null;
 
-                mOrientationManager.removeOnChangedListener(mCompassListener);
-                mOrientationManager.stop();
+                orientationManager.removeOnChangedListener(benefitsCompassListener);
+                orientationManager.stop();
 
             }
         }
@@ -187,13 +169,13 @@ public class CompassRenderer implements DirectRenderingCallback {
     private void doLayout() {
         // Measure and update the layout so that it will take up the entire surface space
         // when it is drawn.
-        int measuredWidth = View.MeasureSpec.makeMeasureSpec(mSurfaceWidth,
+        int measuredWidth = View.MeasureSpec.makeMeasureSpec(surfaceWidth,
                 View.MeasureSpec.EXACTLY);
-        int measuredHeight = View.MeasureSpec.makeMeasureSpec(mSurfaceHeight,
+        int measuredHeight = View.MeasureSpec.makeMeasureSpec(surfaceHeight,
                 View.MeasureSpec.EXACTLY);
 
-        mLayout.measure(measuredWidth, measuredHeight);
-        mLayout.layout(0, 0, mLayout.getMeasuredWidth(), mLayout.getMeasuredHeight());
+        frameLayout.measure(measuredWidth, measuredHeight);
+        frameLayout.layout(0, 0, frameLayout.getMeasuredWidth(), frameLayout.getMeasuredHeight());
     }
 
     /**
@@ -203,17 +185,17 @@ public class CompassRenderer implements DirectRenderingCallback {
         Canvas canvas = null;
 
         try {
-            canvas = mHolder.lockCanvas();
+            canvas = surfaceHolder.lockCanvas();
         } catch (RuntimeException e) {
             Log.d(TAG, "lockCanvas failed", e);
         }
 
         if (canvas != null) {
             canvas.drawColor(Color.BLACK);
-            mLayout.draw(canvas);
+            frameLayout.draw(canvas);
 
             try {
-                mHolder.unlockCanvasAndPost(canvas);
+                surfaceHolder.unlockCanvasAndPost(canvas);
             } catch (RuntimeException e) {
                 Log.d(TAG, "unlockCanvasAndPost failed", e);
             }
@@ -229,22 +211,22 @@ public class CompassRenderer implements DirectRenderingCallback {
 
         // Only one message (with magnetic interference being higher priority than pitch too steep)
         // will be displayed in the tip.
-        if (mInterference) {
+        if (interference) {
             stringId = R.string.magnetic_interference;
-        } else if (mTooSteep) {
+        } else if (tooSteep) {
             stringId = R.string.pitch_too_steep;
         }
 
         boolean show = (stringId != 0);
 
         if (show) {
-            mTipsView.setText(stringId);
+            tipsView.setText(stringId);
             doLayout();
         }
 
-        if (mTipsContainer.getAnimation() == null) {
+        if (tipsContainer.getAnimation() == null) {
             float newAlpha = (show ? 1.0f : 0.0f);
-            mTipsContainer.animate().alpha(newAlpha).start();
+            tipsContainer.animate().alpha(newAlpha).start();
         }
     }
 

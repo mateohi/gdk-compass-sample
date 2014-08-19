@@ -1,24 +1,7 @@
-/*
- * Copyright (C) 2013 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.google.android.glass.sample.compass;
 
 import com.google.android.glass.sample.compass.util.MathUtils;
 
-import android.content.Context;
 import android.hardware.GeomagneticField;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -65,45 +48,18 @@ public class OrientationManager {
      */
     private static final int ARM_DISPLACEMENT_DEGREES = 6;
 
-    /**
-     * Classes should implement this interface if they want to be notified of changes in the user's
-     * location, orientation, or the accuracy of the compass.
-     */
-    public interface OnChangedListener {
-        /**
-         * Called when the user's orientation changes.
-         *
-         * @param orientationManager the orientation manager that detected the change
-         */
-        void onOrientationChanged(OrientationManager orientationManager);
+    private final SensorManager sensorManager;
+    private final LocationManager locationManager;
+    private final Set<BenefitsCompassListener> listeners;
+    private final float[] rotationMatrix;
+    private final float[] orientation;
 
-        /**
-         * Called when the user's location changes.
-         *
-         * @param orientationManager the orientation manager that detected the change
-         */
-        void onLocationChanged(OrientationManager orientationManager);
-
-        /**
-         * Called when the accuracy of the compass changes.
-         *
-         * @param orientationManager the orientation manager that detected the change
-         */
-        void onAccuracyChanged(OrientationManager orientationManager);
-    }
-
-    private final SensorManager mSensorManager;
-    private final LocationManager mLocationManager;
-    private final Set<OnChangedListener> mListeners;
-    private final float[] mRotationMatrix;
-    private final float[] mOrientation;
-
-    private boolean mTracking;
-    private float mHeading;
-    private float mPitch;
-    private Location mLocation;
-    private GeomagneticField mGeomagneticField;
-    private boolean mHasInterference;
+    private boolean tracking;
+    private float heading;
+    private float pitch;
+    private Location location;
+    private GeomagneticField geomagneticField;
+    private boolean hasInterference;
 
     /**
      * The sensor listener used by the orientation manager.
@@ -113,7 +69,7 @@ public class OrientationManager {
         @Override
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
             if (sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
-                mHasInterference = (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_HIGH);
+                hasInterference = (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_HIGH);
                 notifyAccuracyChanged();
             }
         }
@@ -123,19 +79,19 @@ public class OrientationManager {
             if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
                 // Get the current heading from the sensor, then notify the listeners of the
                 // change.
-                SensorManager.getRotationMatrixFromVector(mRotationMatrix, event.values);
-                SensorManager.remapCoordinateSystem(mRotationMatrix, SensorManager.AXIS_X,
-                        SensorManager.AXIS_Z, mRotationMatrix);
-                SensorManager.getOrientation(mRotationMatrix, mOrientation);
+                SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+                SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_X,
+                        SensorManager.AXIS_Z, rotationMatrix);
+                SensorManager.getOrientation(rotationMatrix, orientation);
 
                 // Store the pitch (used to display a message indicating that the user's head
                 // angle is too steep to produce reliable results.
-                mPitch = (float) Math.toDegrees(mOrientation[1]);
+                pitch = (float) Math.toDegrees(orientation[1]);
 
                 // Convert the heading (which is relative to magnetic north) to one that is
                 // relative to true north, using the user's current location to compute this.
-                float magneticHeading = (float) Math.toDegrees(mOrientation[0]);
-                mHeading = MathUtils.mod(computeTrueNorth(magneticHeading), 360.0f)
+                float magneticHeading = (float) Math.toDegrees(orientation[0]);
+                heading = MathUtils.mod(computeTrueNorth(magneticHeading), 360.0f)
                         - ARM_DISPLACEMENT_DEGREES;
 
                 notifyOrientationChanged();
@@ -149,7 +105,7 @@ public class OrientationManager {
     private LocationListener mLocationListener = new LocationListener() {
         @Override
         public void onLocationChanged(Location location) {
-            mLocation = location;
+            OrientationManager.this.location = location;
             updateGeomagneticField();
             notifyLocationChanged();
         }
@@ -175,50 +131,49 @@ public class OrientationManager {
      * access system services.
      */
     public OrientationManager(SensorManager sensorManager, LocationManager locationManager) {
-        mRotationMatrix = new float[16];
-        mOrientation = new float[9];
-        mSensorManager = sensorManager;
-        mLocationManager = locationManager;
-        mListeners = new LinkedHashSet<OnChangedListener>();
+        rotationMatrix = new float[16];
+        orientation = new float[9];
+        this.sensorManager = sensorManager;
+        this.locationManager = locationManager;
+        listeners = new LinkedHashSet<BenefitsCompassListener>();
     }
 
     /**
      * Adds a listener that will be notified when the user's location or orientation changes.
      */
-    public void addOnChangedListener(OnChangedListener listener) {
-        mListeners.add(listener);
+    public void addOnChangedListener(BenefitsCompassListener listener) {
+        listeners.add(listener);
     }
 
     /**
      * Removes a listener from the list of those that will be notified when the user's location or
      * orientation changes.
      */
-    public void removeOnChangedListener(OnChangedListener listener) {
-        mListeners.remove(listener);
+    public void removeOnChangedListener(BenefitsCompassListener listener) {
+        listeners.remove(listener);
     }
 
     /**
-     * Starts tracking the user's location and orientation. After calling this method, any
-     * {@link com.google.android.glass.sample.compass.OrientationManager.OnChangedListener}s added to this object will be notified of these events.
+     * Starts tracking the user's location and orientation.
      */
     public void start() {
-        if (!mTracking) {
-            mSensorManager.registerListener(mSensorListener,
-                    mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR),
+        if (!tracking) {
+            sensorManager.registerListener(mSensorListener,
+                    sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR),
                     SensorManager.SENSOR_DELAY_UI);
 
             // The rotation vector sensor doesn't give us accuracy updates, so we observe the
             // magnetic field sensor solely for those.
-            mSensorManager.registerListener(mSensorListener,
-                    mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD),
+            sensorManager.registerListener(mSensorListener,
+                    sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD),
                     SensorManager.SENSOR_DELAY_UI);
 
-            Location lastLocation = mLocationManager
+            Location lastLocation = locationManager
                     .getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
             if (lastLocation != null) {
                 long locationAge = lastLocation.getTime() - System.currentTimeMillis();
                 if (locationAge < MAX_LOCATION_AGE_MILLIS) {
-                    mLocation = lastLocation;
+                    location = lastLocation;
                     updateGeomagneticField();
                 }
             }
@@ -229,14 +184,14 @@ public class OrientationManager {
             criteria.setSpeedRequired(false);
 
             List<String> providers =
-                    mLocationManager.getProviders(criteria, true /* enabledOnly */);
+                    locationManager.getProviders(criteria, true /* enabledOnly */);
             for (String provider : providers) {
-                mLocationManager.requestLocationUpdates(provider,
+                locationManager.requestLocationUpdates(provider,
                         MILLIS_BETWEEN_LOCATIONS, METERS_BETWEEN_LOCATIONS, mLocationListener,
                         Looper.getMainLooper());
             }
 
-            mTracking = true;
+            tracking = true;
         }
     }
 
@@ -245,10 +200,10 @@ public class OrientationManager {
      * these events.
      */
     public void stop() {
-        if (mTracking) {
-            mSensorManager.unregisterListener(mSensorListener);
-            mLocationManager.removeUpdates(mLocationListener);
-            mTracking = false;
+        if (tracking) {
+            sensorManager.unregisterListener(mSensorListener);
+            locationManager.removeUpdates(mLocationListener);
+            tracking = false;
         }
     }
 
@@ -259,7 +214,7 @@ public class OrientationManager {
      * @return true if there is magnetic interference, otherwise false
      */
     public boolean hasInterference() {
-        return mHasInterference;
+        return hasInterference;
     }
 
     /**
@@ -268,7 +223,7 @@ public class OrientationManager {
      * @return true if the user's location is known, otherwise false
      */
     public boolean hasLocation() {
-        return mLocation != null;
+        return location != null;
     }
 
     /**
@@ -278,7 +233,7 @@ public class OrientationManager {
      * @return the user's current heading, in degrees
      */
     public float getHeading() {
-        return mHeading;
+        return heading;
     }
 
     /**
@@ -288,7 +243,7 @@ public class OrientationManager {
      * @return the user's current pitch angle, in degrees
      */
     public float getPitch() {
-        return mPitch;
+        return pitch;
     }
 
     /**
@@ -297,14 +252,14 @@ public class OrientationManager {
      * @return the user's current location
      */
     public Location getLocation() {
-        return mLocation;
+        return location;
     }
 
     /**
      * Notifies all listeners that the user's orientation has changed.
      */
     private void notifyOrientationChanged() {
-        for (OnChangedListener listener : mListeners) {
+        for (BenefitsCompassListener listener : listeners) {
             listener.onOrientationChanged(this);
         }
     }
@@ -313,7 +268,7 @@ public class OrientationManager {
      * Notifies all listeners that the user's location has changed.
      */
     private void notifyLocationChanged() {
-        for (OnChangedListener listener : mListeners) {
+        for (BenefitsCompassListener listener : listeners) {
             listener.onLocationChanged(this);
         }
     }
@@ -322,7 +277,7 @@ public class OrientationManager {
      * Notifies all listeners that the compass's accuracy has changed.
      */
     private void notifyAccuracyChanged() {
-        for (OnChangedListener listener : mListeners) {
+        for (BenefitsCompassListener listener : listeners) {
             listener.onAccuracyChanged(this);
         }
     }
@@ -331,9 +286,9 @@ public class OrientationManager {
      * Updates the cached instance of the geomagnetic field after a location change.
      */
     private void updateGeomagneticField() {
-        mGeomagneticField = new GeomagneticField((float) mLocation.getLatitude(),
-                (float) mLocation.getLongitude(), (float) mLocation.getAltitude(),
-                mLocation.getTime());
+        geomagneticField = new GeomagneticField((float) location.getLatitude(),
+                (float) location.getLongitude(), (float) location.getAltitude(),
+                location.getTime());
     }
 
     /**
@@ -344,8 +299,8 @@ public class OrientationManager {
      * @return the heading (in degrees) relative to true north
      */
     private float computeTrueNorth(float heading) {
-        if (mGeomagneticField != null) {
-            return heading + mGeomagneticField.getDeclination();
+        if (geomagneticField != null) {
+            return heading + geomagneticField.getDeclination();
         } else {
             return heading;
         }
