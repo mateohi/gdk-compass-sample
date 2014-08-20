@@ -29,9 +29,6 @@ import java.util.List;
 public class BenefitsCompassView extends View {
 
     /** Various dimensions and other drawing-related constants. */
-    private static final float NEEDLE_WIDTH = 6;
-    private static final float NEEDLE_HEIGHT = 125;
-    private static final int NEEDLE_COLOR = Color.RED;
     private static final float TICK_WIDTH = 2;
     private static final float TICK_HEIGHT = 10;
     private static final float DIRECTION_TEXT_HEIGHT = 84.0f;
@@ -67,7 +64,6 @@ public class BenefitsCompassView extends View {
 
     private final Paint paint;
     private final Paint tickPaint;
-    private final Path path;
     private final TextPaint benefitPaint;
     private final Bitmap placeBitmap;
     private final Rect textBounds;
@@ -106,7 +102,6 @@ public class BenefitsCompassView extends View {
         benefitPaint.setTextSize(PLACE_TEXT_HEIGHT);
         benefitPaint.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
 
-        path = new Path();
         textBounds = new Rect();
         allBounds = new ArrayList<Rect>();
 
@@ -191,10 +186,6 @@ public class BenefitsCompassView extends View {
         drawCompassDirections(canvas, pixelsPerDegree);
 
         canvas.restore();
-
-        paint.setColor(NEEDLE_COLOR);
-        drawNeedle(canvas, false);
-        drawNeedle(canvas, true);
     }
 
     /**
@@ -309,39 +300,6 @@ public class BenefitsCompassView extends View {
                 }
             }
         }
-    }
-
-    /**
-     * Draws a needle that is centered at the top or bottom of the compass.
-     *
-     * @param canvas the {@link android.graphics.Canvas} upon which to draw
-     * @param bottom true to draw the bottom needle, or false to draw the top needle
-     */
-    private void drawNeedle(Canvas canvas, boolean bottom) {
-        float centerX = getWidth() / 2.0f;
-        float origin;
-        float sign;
-
-        // Flip the vertical coordinates if we're drawing the bottom needle.
-        if (bottom) {
-            origin = getHeight();
-            sign = -1;
-        } else {
-            origin = 0;
-            sign = 1;
-        }
-
-        float needleHalfWidth = NEEDLE_WIDTH / 2;
-
-        path.reset();
-        path.moveTo(centerX - needleHalfWidth, origin);
-        path.lineTo(centerX - needleHalfWidth, origin + sign * (NEEDLE_HEIGHT - 4));
-        path.lineTo(centerX, origin + sign * NEEDLE_HEIGHT);
-        path.lineTo(centerX + needleHalfWidth, origin + sign * (NEEDLE_HEIGHT - 4));
-        path.lineTo(centerX + needleHalfWidth, origin);
-        path.close();
-
-        canvas.drawPath(path, paint);
     }
 
     /**

@@ -33,7 +33,7 @@ public class BenefitsCompassRenderer implements DirectRenderingCallback {
      * The (absolute) pitch angle beyond which the compass will display a message telling the user
      * that his or her head is at too steep an angle to be reliable.
      */
-    private static final float TOO_STEEP_PITCH_DEGREES = 70.0f;
+    private static final float TOO_STEEP_PITCH_DEGREES = 50.0f;
 
     /** The refresh rate, in frames per second, of the compass. */
     private static final int REFRESH_RATE_FPS = 45;
