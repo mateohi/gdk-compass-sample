@@ -25,9 +25,9 @@ import java.util.concurrent.TimeUnit;
  * also manages the lifetime of the sensor and location event listeners (through
  * {@link OrientationManager}) so that tracking only occurs when the card is visible.
  */
-public class CompassRenderer implements DirectRenderingCallback {
+public class BenefitsCompassRenderer implements DirectRenderingCallback {
 
-    private static final String TAG = CompassRenderer.class.getSimpleName();
+    private static final String TAG = BenefitsCompassRenderer.class.getSimpleName();
 
     /**
      * The (absolute) pitch angle beyond which the compass will display a message telling the user
@@ -42,8 +42,8 @@ public class CompassRenderer implements DirectRenderingCallback {
     private static final long FRAME_TIME_MILLIS = TimeUnit.SECONDS.toMillis(1) / REFRESH_RATE_FPS;
 
     private SurfaceHolder surfaceHolder;
-    private boolean tooSteep;
-    private boolean interference;
+    private boolean isTooSteep;
+    private boolean hasMagneticInterference;
     private RenderThread renderThread;
     private int surfaceWidth;
     private int surfaceHeight;
@@ -51,7 +51,7 @@ public class CompassRenderer implements DirectRenderingCallback {
     private boolean renderingPaused;
 
     private final FrameLayout frameLayout;
-    private final CompassView compassView;
+    private final BenefitsCompassView benefitsCompassView;
     private final RelativeLayout tipsContainer;
     private final TextView tipsView;
     private final OrientationManager orientationManager;
@@ -61,11 +61,11 @@ public class CompassRenderer implements DirectRenderingCallback {
 
         @Override
         public void onOrientationChanged(OrientationManager orientationManager) {
-            compassView.setHeading(orientationManager.getHeading());
+            benefitsCompassView.setHeading(orientationManager.getHeading());
 
-            boolean oldTooSteep = tooSteep;
-            tooSteep = (Math.abs(orientationManager.getPitch()) > TOO_STEEP_PITCH_DEGREES);
-            if (tooSteep != oldTooSteep) {
+            boolean oldTooSteep = isTooSteep;
+            isTooSteep = (Math.abs(orientationManager.getPitch()) > TOO_STEEP_PITCH_DEGREES);
+            if (isTooSteep != oldTooSteep) {
                 updateTipsView();
             }
         }
@@ -75,12 +75,12 @@ public class CompassRenderer implements DirectRenderingCallback {
             Location location = orientationManager.getLocation();
             List<Place> places = landmarks.getNearbyLandmarks(
                     location.getLatitude(), location.getLongitude());
-            compassView.setNearbyPlaces(places);
+            benefitsCompassView.setNearbyPlaces(places);
         }
 
         @Override
         public void onAccuracyChanged(OrientationManager orientationManager) {
-            interference = orientationManager.hasInterference();
+            hasMagneticInterference = orientationManager.hasInterference();
             updateTipsView();
         }
     };
@@ -89,20 +89,21 @@ public class CompassRenderer implements DirectRenderingCallback {
      * Creates a new instance of the {@code CompassRenderer} with the specified context,
      * orientation manager, and landmark collection.
      */
-    public CompassRenderer(Context context, OrientationManager orientationManager,
-                Landmarks landmarks) {
+    public BenefitsCompassRenderer(Context context, OrientationManager orientationManager,
+                                   Landmarks landmarks) {
         LayoutInflater inflater = LayoutInflater.from(context);
         frameLayout = (FrameLayout) inflater.inflate(R.layout.compass, null);
         frameLayout.setWillNotDraw(false);
 
-        compassView = (CompassView) frameLayout.findViewById(R.id.compass);
+        benefitsCompassView = (BenefitsCompassView) frameLayout.findViewById(R.id.compass);
         tipsContainer = (RelativeLayout) frameLayout.findViewById(R.id.tips_container);
         tipsView = (TextView) frameLayout.findViewById(R.id.tips_view);
 
         this.orientationManager = orientationManager;
         this.landmarks = landmarks;
 
-        compassView.setOrientationManager(this.orientationManager);
+        benefitsCompassView.setOrientationManager(this.orientationManager);
+        this.orientationManager.setBenefitsCompassListener(benefitsCompassListener);
     }
 
     @Override
@@ -138,14 +139,13 @@ public class CompassRenderer implements DirectRenderingCallback {
 
         if (shouldRender != isRendering) {
             if (shouldRender) {
-                orientationManager.addOnChangedListener(benefitsCompassListener);
                 orientationManager.start();
 
                 if (orientationManager.hasLocation()) {
                     Location location = orientationManager.getLocation();
                     List<Place> nearbyPlaces = landmarks.getNearbyLandmarks(
                         location.getLatitude(), location.getLongitude());
-                    compassView.setNearbyPlaces(nearbyPlaces);
+                    benefitsCompassView.setNearbyPlaces(nearbyPlaces);
                 }
 
                 renderThread = new RenderThread();
@@ -154,7 +154,6 @@ public class CompassRenderer implements DirectRenderingCallback {
                 renderThread.quit();
                 renderThread = null;
 
-                orientationManager.removeOnChangedListener(benefitsCompassListener);
                 orientationManager.stop();
 
             }
@@ -169,10 +168,8 @@ public class CompassRenderer implements DirectRenderingCallback {
     private void doLayout() {
         // Measure and update the layout so that it will take up the entire surface space
         // when it is drawn.
-        int measuredWidth = View.MeasureSpec.makeMeasureSpec(surfaceWidth,
-                View.MeasureSpec.EXACTLY);
-        int measuredHeight = View.MeasureSpec.makeMeasureSpec(surfaceHeight,
-                View.MeasureSpec.EXACTLY);
+        int measuredWidth = View.MeasureSpec.makeMeasureSpec(surfaceWidth, View.MeasureSpec.EXACTLY);
+        int measuredHeight = View.MeasureSpec.makeMeasureSpec(surfaceHeight, View.MeasureSpec.EXACTLY);
 
         frameLayout.measure(measuredWidth, measuredHeight);
         frameLayout.layout(0, 0, frameLayout.getMeasuredWidth(), frameLayout.getMeasuredHeight());
@@ -207,25 +204,19 @@ public class CompassRenderer implements DirectRenderingCallback {
      * compass.
      */
     private void updateTipsView() {
-        int stringId = 0;
+        float newAlpha = 1.0f;
 
-        // Only one message (with magnetic interference being higher priority than pitch too steep)
-        // will be displayed in the tip.
-        if (interference) {
-            stringId = R.string.magnetic_interference;
-        } else if (tooSteep) {
-            stringId = R.string.pitch_too_steep;
-        }
-
-        boolean show = (stringId != 0);
-
-        if (show) {
-            tipsView.setText(stringId);
+        if (hasMagneticInterference) {
+            tipsView.setText(R.string.magnetic_interference);
             doLayout();
+        } else if (isTooSteep) {
+            tipsView.setText(R.string.pitch_too_steep);
+            doLayout();
+        } else {
+            newAlpha = 0.0f;
         }
 
         if (tipsContainer.getAnimation() == null) {
-            float newAlpha = (show ? 1.0f : 0.0f);
             tipsContainer.animate().alpha(newAlpha).start();
         }
     }
@@ -234,13 +225,13 @@ public class CompassRenderer implements DirectRenderingCallback {
      * Redraws the compass in the background.
      */
     private class RenderThread extends Thread {
-        private boolean mShouldRun;
+        private boolean shouldRun;
 
         /**
          * Initializes the background rendering thread.
          */
         public RenderThread() {
-            mShouldRun = true;
+            shouldRun = true;
         }
 
         /**
@@ -249,14 +240,14 @@ public class CompassRenderer implements DirectRenderingCallback {
          * @return true if the rendering thread should continue to run
          */
         private synchronized boolean shouldRun() {
-            return mShouldRun;
+            return shouldRun;
         }
 
         /**
          * Requests that the rendering thread exit at the next opportunity.
          */
         public synchronized void quit() {
-            mShouldRun = false;
+            shouldRun = false;
         }
 
         @Override

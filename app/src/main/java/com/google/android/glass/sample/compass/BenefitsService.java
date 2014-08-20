@@ -15,59 +15,29 @@ import android.location.LocationManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 
 public class BenefitsService extends Service {
 
-    private static final String LIVE_CARD_TAG = "benefits";
+    private static final String TAG = BenefitsService.class.getSimpleName();
 
-    /**
-     * A binder that gives other components access to the speech capabilities provided by the
-     * service.
-     */
-    public class CompassBinder extends Binder {
-        /**
-         * Read the current observed benefit description aloud.
-         */
-        public void readBenefitDescription() {
-            float heading = orientationManager.getHeading();
-
-            Resources res = getResources();
-            String[] spokenDirections = res.getStringArray(R.array.spoken_directions);
-            String directionName = spokenDirections[MathUtils.getHalfWindIndex(heading)];
-
-            int roundedHeading = Math.round(heading);
-            int headingFormat;
-            if (roundedHeading == 1) {
-                headingFormat = R.string.spoken_heading_format_one;
-            } else {
-                headingFormat = R.string.spoken_heading_format;
-            }
-
-            String headingText = res.getString(headingFormat, roundedHeading, directionName);
-            speech.speak(headingText, TextToSpeech.QUEUE_FLUSH, null);
-        }
-    }
-
-    private final CompassBinder binder = new CompassBinder();
+    private final BenefitsBinder binder = new BenefitsBinder();
 
     private OrientationManager orientationManager;
     private Landmarks landmarks;
     private TextToSpeech speech;
 
     private LiveCard liveCard;
-    private CompassRenderer compassRenderer;
+    private BenefitsCompassRenderer benefitsCompassRenderer;
 
     @Override
     public void onCreate() {
         super.onCreate();
 
-        // Even though the text-to-speech engine is only used in response to a menu action, we
-        // initialize it when the application starts so that we avoid delays that could occur
-        // if we waited until it was needed to start it up.
         speech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {
-                // Do nothing.
+                Log.i(TAG, "Text to speech initialized ...");
             }
         });
 
@@ -88,10 +58,10 @@ public class BenefitsService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (liveCard == null) {
-            liveCard = new LiveCard(this, LIVE_CARD_TAG);
-            compassRenderer = new CompassRenderer(this, orientationManager, landmarks);
+            liveCard = new LiveCard(this, TAG);
+            benefitsCompassRenderer = new BenefitsCompassRenderer(this, orientationManager, landmarks);
 
-            liveCard.setDirectRenderingEnabled(true).getSurfaceHolder().addCallback(compassRenderer);
+            liveCard.setDirectRenderingEnabled(true).getSurfaceHolder().addCallback(benefitsCompassRenderer);
 
             // Display the options menu when the live card is tapped.
             Intent menuIntent = new Intent(this, BenefitsMenuActivity.class);
@@ -120,5 +90,33 @@ public class BenefitsService extends Service {
         landmarks = null;
 
         super.onDestroy();
+    }
+
+    /**
+     * A binder that gives other components access to the speech capabilities provided by the
+     * service.
+     */
+    public class BenefitsBinder extends Binder {
+        /**
+         * Read the current observed benefit description aloud.
+         */
+        public void readBenefitDescription() {
+            float heading = orientationManager.getHeading();
+
+            Resources res = getResources();
+            String[] spokenDirections = res.getStringArray(R.array.spoken_directions);
+            String directionName = spokenDirections[MathUtils.getHalfWindIndex(heading)];
+
+            int roundedHeading = Math.round(heading);
+            int headingFormat;
+            if (roundedHeading == 1) {
+                headingFormat = R.string.spoken_heading_format_one;
+            } else {
+                headingFormat = R.string.spoken_heading_format;
+            }
+
+            String headingText = res.getString(headingFormat, roundedHeading, directionName);
+            speech.speak(headingText, TextToSpeech.QUEUE_FLUSH, null);
+        }
     }
 }

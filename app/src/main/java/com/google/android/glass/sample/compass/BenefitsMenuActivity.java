@@ -16,15 +16,15 @@ public class BenefitsMenuActivity extends Activity {
 
     private final Handler handler = new Handler();
 
-    private BenefitsService.CompassBinder compassBinder;
+    private BenefitsService.BenefitsBinder benefitsBinder;
     private boolean attachedToWindow;
     private boolean optionsMenuOpen;
 
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            if (service instanceof BenefitsService.CompassBinder) {
-                compassBinder = (BenefitsService.CompassBinder) service;
+            if (service instanceof BenefitsService.BenefitsBinder) {
+                benefitsBinder = (BenefitsService.BenefitsBinder) service;
                 openOptionsMenu();
             }
         }
@@ -56,7 +56,7 @@ public class BenefitsMenuActivity extends Activity {
 
     @Override
     public void openOptionsMenu() {
-        if (!optionsMenuOpen && attachedToWindow && compassBinder != null) {
+        if (!optionsMenuOpen && attachedToWindow && benefitsBinder != null) {
             super.openOptionsMenu();
         }
     }
@@ -71,14 +71,10 @@ public class BenefitsMenuActivity extends Activity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.read_aloud:
-                compassBinder.readBenefitDescription();
+                benefitsBinder.readBenefitDescription();
                 return true;
             case R.id.stop:
-                // Stop the service at the end of the message queue for proper options menu
-                // animation. This is only needed when starting an Activity or stopping a Service
-                // that published a LiveCard.
                 handler.post(new Runnable() {
-
                     @Override
                     public void run() {
                         stopService(new Intent(BenefitsMenuActivity.this, BenefitsService.class));

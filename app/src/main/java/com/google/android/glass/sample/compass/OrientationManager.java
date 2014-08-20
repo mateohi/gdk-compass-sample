@@ -14,9 +14,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Looper;
 
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -50,7 +48,6 @@ public class OrientationManager {
 
     private final SensorManager sensorManager;
     private final LocationManager locationManager;
-    private final Set<BenefitsCompassListener> listeners;
     private final float[] rotationMatrix;
     private final float[] orientation;
 
@@ -58,6 +55,7 @@ public class OrientationManager {
     private float heading;
     private float pitch;
     private Location location;
+    private BenefitsCompassListener listener;
     private GeomagneticField geomagneticField;
     private boolean hasInterference;
 
@@ -70,7 +68,7 @@ public class OrientationManager {
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
             if (sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
                 hasInterference = (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_HIGH);
-                notifyAccuracyChanged();
+                listener.onAccuracyChanged(OrientationManager.this);
             }
         }
 
@@ -94,7 +92,7 @@ public class OrientationManager {
                 heading = MathUtils.mod(computeTrueNorth(magneticHeading), 360.0f)
                         - ARM_DISPLACEMENT_DEGREES;
 
-                notifyOrientationChanged();
+                listener.onOrientationChanged(OrientationManager.this);
             }
         }
     };
@@ -107,7 +105,7 @@ public class OrientationManager {
         public void onLocationChanged(Location location) {
             OrientationManager.this.location = location;
             updateGeomagneticField();
-            notifyLocationChanged();
+            listener.onLocationChanged(OrientationManager.this);
         }
 
         @Override
@@ -135,22 +133,6 @@ public class OrientationManager {
         orientation = new float[9];
         this.sensorManager = sensorManager;
         this.locationManager = locationManager;
-        listeners = new LinkedHashSet<BenefitsCompassListener>();
-    }
-
-    /**
-     * Adds a listener that will be notified when the user's location or orientation changes.
-     */
-    public void addOnChangedListener(BenefitsCompassListener listener) {
-        listeners.add(listener);
-    }
-
-    /**
-     * Removes a listener from the list of those that will be notified when the user's location or
-     * orientation changes.
-     */
-    public void removeOnChangedListener(BenefitsCompassListener listener) {
-        listeners.remove(listener);
     }
 
     /**
@@ -207,79 +189,28 @@ public class OrientationManager {
         }
     }
 
-    /**
-     * Gets a value indicating whether there is too much magnetic field interference for the
-     * compass to be reliable.
-     *
-     * @return true if there is magnetic interference, otherwise false
-     */
     public boolean hasInterference() {
         return hasInterference;
     }
 
-    /**
-     * Gets a value indicating whether the orientation manager knows the user's current location.
-     *
-     * @return true if the user's location is known, otherwise false
-     */
     public boolean hasLocation() {
         return location != null;
     }
 
-    /**
-     * Gets the user's current heading, in degrees. The result is guaranteed to be between 0 and
-     * 360.
-     *
-     * @return the user's current heading, in degrees
-     */
     public float getHeading() {
         return heading;
     }
 
-    /**
-     * Gets the user's current pitch (head tilt angle), in degrees. The result is guaranteed to be
-     * between -90 and 90.
-     *
-     * @return the user's current pitch angle, in degrees
-     */
     public float getPitch() {
         return pitch;
     }
 
-    /**
-     * Gets the user's current location.
-     *
-     * @return the user's current location
-     */
     public Location getLocation() {
         return location;
     }
 
-    /**
-     * Notifies all listeners that the user's orientation has changed.
-     */
-    private void notifyOrientationChanged() {
-        for (BenefitsCompassListener listener : listeners) {
-            listener.onOrientationChanged(this);
-        }
-    }
-
-    /**
-     * Notifies all listeners that the user's location has changed.
-     */
-    private void notifyLocationChanged() {
-        for (BenefitsCompassListener listener : listeners) {
-            listener.onLocationChanged(this);
-        }
-    }
-
-    /**
-     * Notifies all listeners that the compass's accuracy has changed.
-     */
-    private void notifyAccuracyChanged() {
-        for (BenefitsCompassListener listener : listeners) {
-            listener.onAccuracyChanged(this);
-        }
+    public void setBenefitsCompassListener(BenefitsCompassListener benefitsCompassListener) {
+        this.listener = benefitsCompassListener;
     }
 
     /**
