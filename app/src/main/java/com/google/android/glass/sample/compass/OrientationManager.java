@@ -67,7 +67,7 @@ public class OrientationManager {
         @Override
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
             if (sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
-                hasInterference = (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_HIGH);
+                hasInterference = (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_LOW);
                 listener.onAccuracyChanged(OrientationManager.this);
             }
         }

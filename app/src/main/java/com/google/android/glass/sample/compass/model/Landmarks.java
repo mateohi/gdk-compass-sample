@@ -98,11 +98,12 @@ public class Landmarks {
      */
     private Place jsonObjectToPlace(JSONObject object) {
         String name = object.optString("name");
+        String description = object.optString("description");
         double latitude = object.optDouble("latitude", Double.NaN);
         double longitude = object.optDouble("longitude", Double.NaN);
 
         if (!name.isEmpty() && !Double.isNaN(latitude) && !Double.isNaN(longitude)) {
-            return new Place(latitude, longitude, name);
+            return new Place(latitude, longitude, name, description);
         } else {
             return null;
         }

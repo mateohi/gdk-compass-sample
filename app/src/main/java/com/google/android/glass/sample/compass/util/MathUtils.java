@@ -100,4 +100,8 @@ public class MathUtils {
 
         return (float) (EARTH_RADIUS_KM * c);
     }
+
+    public static double getAngleDifference(double angleA, double angleB) {
+        return Math.abs(angleA - angleB) % 360;
+    }
 }

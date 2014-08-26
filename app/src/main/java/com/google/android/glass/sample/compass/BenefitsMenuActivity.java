@@ -70,6 +70,9 @@ public class BenefitsMenuActivity extends Activity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.get_directions:
+                benefitsBinder.getDirections();
+                return true;
             case R.id.read_aloud:
                 benefitsBinder.readBenefitDescription();
                 return true;

@@ -1,6 +1,7 @@
 package com.google.android.glass.sample.compass;
 
 import com.google.android.glass.sample.compass.model.Landmarks;
+import com.google.android.glass.sample.compass.model.Place;
 import com.google.android.glass.sample.compass.util.MathUtils;
 import com.google.android.glass.timeline.LiveCard;
 import com.google.android.glass.timeline.LiveCard.PublishMode;
@@ -12,6 +13,7 @@ import android.content.Intent;
 import android.content.res.Resources;
 import android.hardware.SensorManager;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
 import android.speech.tts.TextToSpeech;
@@ -92,31 +94,23 @@ public class BenefitsService extends Service {
         super.onDestroy();
     }
 
-    /**
-     * A binder that gives other components access to the speech capabilities provided by the
-     * service.
-     */
     public class BenefitsBinder extends Binder {
-        /**
-         * Read the current observed benefit description aloud.
-         */
+
         public void readBenefitDescription() {
-            float heading = orientationManager.getHeading();
+            Place benefit = benefitsCompassRenderer.getFrontBenefit();
 
-            Resources res = getResources();
-            String[] spokenDirections = res.getStringArray(R.array.spoken_directions);
-            String directionName = spokenDirections[MathUtils.getHalfWindIndex(heading)];
+            String text = benefit.getDescription() + " in " + benefit.getName();
+            speech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+        }
 
-            int roundedHeading = Math.round(heading);
-            int headingFormat;
-            if (roundedHeading == 1) {
-                headingFormat = R.string.spoken_heading_format_one;
-            } else {
-                headingFormat = R.string.spoken_heading_format;
-            }
+        public void getDirections() {
+            Place benefit = benefitsCompassRenderer.getFrontBenefit();
+            String uri = "google.navigation:ll=%s,%s&mode=w&title=%s";
 
-            String headingText = res.getString(headingFormat, roundedHeading, directionName);
-            speech.speak(headingText, TextToSpeech.QUEUE_FLUSH, null);
+            Intent mapIntent = new Intent(Intent.ACTION_VIEW);
+            mapIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mapIntent.setData(Uri.parse(String.format(uri, benefit.getLatitude(), benefit.getLongitude(), benefit.getName())));
+            startActivity(mapIntent);
         }
     }
 }

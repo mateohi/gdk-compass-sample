@@ -2,6 +2,11 @@
 
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
+        android:id="@+id/get_directions"
+        android:title="@string/get_directions"
+        android:icon="@drawable/ic_directions"/>
+
+    <item
         android:id="@+id/read_aloud"
         android:title="@string/read_aloud"
         android:icon="@drawable/ic_read_aloud"/>

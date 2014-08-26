@@ -10,44 +10,28 @@ public class Place {
     private final double mLatitude;
     private final double mLongitude;
     private final String mName;
+    private final String description;
 
-    /**
-     * Initializes a new place with the specified coordinates and name.
-     *
-     * @param latitude the latitude of the place
-     * @param longitude the longitude of the place
-     * @param name the name of the place
-     */
-    public Place(double latitude, double longitude, String name) {
+    public Place(double latitude, double longitude, String name, String description) {
         mLatitude = latitude;
         mLongitude = longitude;
         mName = name;
+        this.description = description;
     }
 
-    /**
-     * Gets the latitude of the place.
-     *
-     * @return the latitude of the place
-     */
     public double getLatitude() {
         return mLatitude;
     }
 
-    /**
-     * Gets the longitude of the place.
-     *
-     * @return the longitude of the place
-     */
     public double getLongitude() {
         return mLongitude;
     }
 
-    /**
-     * Gets the name of the place.
-     *
-     * @return the name of the place
-     */
     public String getName() {
         return mName;
+    }
+
+    public String getDescription() {
+        return description;
     }
 }

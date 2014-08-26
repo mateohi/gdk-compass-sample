@@ -20,26 +20,18 @@ import android.widget.TextView;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-/**
- * The surface callback that provides the rendering logic for the compass live card. This callback
- * also manages the lifetime of the sensor and location event listeners (through
- * {@link OrientationManager}) so that tracking only occurs when the card is visible.
- */
 public class BenefitsCompassRenderer implements DirectRenderingCallback {
 
     private static final String TAG = BenefitsCompassRenderer.class.getSimpleName();
 
-    /**
-     * The (absolute) pitch angle beyond which the compass will display a message telling the user
-     * that his or her head is at too steep an angle to be reliable.
-     */
     private static final float TOO_STEEP_PITCH_DEGREES = 50.0f;
 
-    /** The refresh rate, in frames per second, of the compass. */
     private static final int REFRESH_RATE_FPS = 45;
 
-    /** The duration, in milliseconds, of one frame. */
     private static final long FRAME_TIME_MILLIS = TimeUnit.SECONDS.toMillis(1) / REFRESH_RATE_FPS;
+
+    private final TextView benefitNameView;
+    private final TextView benefitDescrView;
 
     private SurfaceHolder surfaceHolder;
     private boolean isTooSteep;
@@ -53,6 +45,7 @@ public class BenefitsCompassRenderer implements DirectRenderingCallback {
     private final FrameLayout frameLayout;
     private final BenefitsCompassView benefitsCompassView;
     private final RelativeLayout tipsContainer;
+    private final RelativeLayout benefitssContainer;
     private final TextView tipsView;
     private final OrientationManager orientationManager;
     private final Landmarks landmarks;
@@ -97,7 +90,10 @@ public class BenefitsCompassRenderer implements DirectRenderingCallback {
 
         benefitsCompassView = (BenefitsCompassView) frameLayout.findViewById(R.id.compass);
         tipsContainer = (RelativeLayout) frameLayout.findViewById(R.id.tips_container);
+        benefitssContainer = (RelativeLayout) frameLayout.findViewById(R.id.benefit_container);
         tipsView = (TextView) frameLayout.findViewById(R.id.tips_view);
+        benefitNameView = (TextView) frameLayout.findViewById(R.id.benefits_name);
+        benefitDescrView = (TextView) frameLayout.findViewById(R.id.benefits_description);
 
         this.orientationManager = orientationManager;
         this.landmarks = landmarks;
@@ -188,6 +184,7 @@ public class BenefitsCompassRenderer implements DirectRenderingCallback {
         }
 
         if (canvas != null) {
+            updateFrontBenefits();
             canvas.drawColor(Color.BLACK);
             frameLayout.draw(canvas);
 
@@ -199,53 +196,53 @@ public class BenefitsCompassRenderer implements DirectRenderingCallback {
         }
     }
 
+    private void updateFrontBenefits() {
+        Place frontBenefit = getFrontBenefit();
+
+        if (frontBenefit != null) {
+            benefitNameView.setText(frontBenefit.getName());
+            benefitDescrView.setText(frontBenefit.getDescription());
+        }
+    }
+
     /**
      * Shows or hides the tip view with an appropriate message based on the current accuracy of the
      * compass.
      */
     private void updateTipsView() {
-        float newAlpha = 1.0f;
+        float tipsAlpha = 1.0f;
+        float benefitsAlpha = 0.0f;
 
-        if (hasMagneticInterference) {
-            tipsView.setText(R.string.magnetic_interference);
-            doLayout();
-        } else if (isTooSteep) {
+        if (isTooSteep) {
             tipsView.setText(R.string.pitch_too_steep);
             doLayout();
+        } else if (hasMagneticInterference) {
+            tipsView.setText(R.string.magnetic_interference);
+            doLayout();
         } else {
-            newAlpha = 0.0f;
+            tipsAlpha = 0.0f;
+            benefitsAlpha = 1.0f;
         }
 
         if (tipsContainer.getAnimation() == null) {
-            tipsContainer.animate().alpha(newAlpha).start();
+            tipsContainer.animate().alpha(tipsAlpha).start();
+        }
+        if (benefitssContainer.getAnimation() == null) {
+            benefitssContainer.animate().alpha(benefitsAlpha).start();
         }
     }
 
-    /**
-     * Redraws the compass in the background.
-     */
     private class RenderThread extends Thread {
         private boolean shouldRun;
 
-        /**
-         * Initializes the background rendering thread.
-         */
         public RenderThread() {
             shouldRun = true;
         }
 
-        /**
-         * Returns true if the rendering thread should continue to run.
-         *
-         * @return true if the rendering thread should continue to run
-         */
         private synchronized boolean shouldRun() {
             return shouldRun;
         }
 
-        /**
-         * Requests that the rendering thread exit at the next opportunity.
-         */
         public synchronized void quit() {
             shouldRun = false;
         }
@@ -263,5 +260,9 @@ public class BenefitsCompassRenderer implements DirectRenderingCallback {
                 }
             }
         }
+    }
+
+    public Place getFrontBenefit() {
+        return this.benefitsCompassView.getFrontBenefit();
     }
 }

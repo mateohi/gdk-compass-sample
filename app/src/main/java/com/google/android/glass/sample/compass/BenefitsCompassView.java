@@ -19,6 +19,7 @@ import android.graphics.Typeface;
 import android.location.Location;
 import android.text.TextPaint;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 
@@ -31,9 +32,10 @@ public class BenefitsCompassView extends View {
     /** Various dimensions and other drawing-related constants. */
     private static final float TICK_WIDTH = 2;
     private static final float TICK_HEIGHT = 10;
-    private static final float DIRECTION_TEXT_HEIGHT = 84.0f;
-    private static final float PLACE_TEXT_HEIGHT = 22.0f;
-    private static final float PLACE_PIN_WIDTH = 14.0f;
+    private static final float DIRECTION_TEXT_HEIGHT = 40.0f;
+    private static final float PLACE_TEXT_HEIGHT = 25.0f;
+    private static final float NEAR_PLACE_TEXT_HEIGHT = 30.0f;
+    private static final float PLACE_PIN_WIDTH = 20.0f;
     private static final float PLACE_TEXT_LEADING = 4.0f;
     private static final float PLACE_TEXT_MARGIN = 8.0f;
 
@@ -61,10 +63,12 @@ public class BenefitsCompassView extends View {
 
     private OrientationManager orientationManager;
     private List<Place> nearbyBenefits;
+    private Place frontBenefit;
 
     private final Paint paint;
     private final Paint tickPaint;
     private final TextPaint benefitPaint;
+    private final TextPaint frontBenefitPaint;
     private final Bitmap placeBitmap;
     private final Rect textBounds;
     private final List<Rect> allBounds;
@@ -87,13 +91,14 @@ public class BenefitsCompassView extends View {
         paint.setStyle(Paint.Style.FILL);
         paint.setAntiAlias(true);
         paint.setTextSize(DIRECTION_TEXT_HEIGHT);
-        paint.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        paint.setColor(Color.GRAY);
+        paint.setTypeface(Typeface.create("sans-serif-thin", Typeface.BOLD));
 
         tickPaint = new Paint();
         tickPaint.setStyle(Paint.Style.STROKE);
         tickPaint.setStrokeWidth(TICK_WIDTH);
         tickPaint.setAntiAlias(true);
-        tickPaint.setColor(Color.WHITE);
+        tickPaint.setColor(Color.GRAY);
 
         benefitPaint = new TextPaint();
         benefitPaint.setStyle(Paint.Style.FILL);
@@ -101,6 +106,13 @@ public class BenefitsCompassView extends View {
         benefitPaint.setColor(Color.WHITE);
         benefitPaint.setTextSize(PLACE_TEXT_HEIGHT);
         benefitPaint.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+
+        frontBenefitPaint = new TextPaint();
+        frontBenefitPaint.setStyle(Paint.Style.FILL);
+        frontBenefitPaint.setAntiAlias(true);
+        frontBenefitPaint.setColor(Color.CYAN);
+        frontBenefitPaint.setTextSize(NEAR_PLACE_TEXT_HEIGHT);
+        frontBenefitPaint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
 
         textBounds = new Rect();
         allBounds = new ArrayList<Rect>();
@@ -120,6 +132,10 @@ public class BenefitsCompassView extends View {
 
         valueAnimator = new ValueAnimator();
         setupAnimator();
+    }
+
+    public Place getFrontBenefit() {
+        return frontBenefit;
     }
 
     /**
@@ -197,8 +213,6 @@ public class BenefitsCompassView extends View {
     private void drawCompassDirections(Canvas canvas, float pixelsPerDegree) {
         float degreesPerTick = 360.0f / directions.length;
 
-        paint.setColor(Color.WHITE);
-
         // We draw two extra ticks/labels on each side of the view so that the
         // full range is visible even when the heading is approximately 0.
         for (int i = -2; i <= directions.length + 2; i++) {
@@ -239,6 +253,8 @@ public class BenefitsCompassView extends View {
                 // location), and compute the relative bearing from the user's location to the
                 // place's location. This determines the position on the compass view where the
                 // pin will be drawn.
+                Place front = nearbyBenefits.get(0);
+                double smallestDifference = 360;
                 for (Place place : nearbyBenefits) {
                     double latitude2 = place.getLatitude();
                     double longitude2 = place.getLongitude();
@@ -257,7 +273,7 @@ public class BenefitsCompassView extends View {
                     benefitPaint.getTextBounds(text, 0, text.length(), textBounds);
                     textBounds.offsetTo((int) (offset + bearing * pixelsPerDegree
                             + PLACE_PIN_WIDTH / 2 + PLACE_TEXT_MARGIN), canvas.getHeight() / 2
-                            - (int) PLACE_TEXT_HEIGHT);
+                            - (int) PLACE_TEXT_HEIGHT + (int) (distanceKm * 5.0));
 
                     // Extend the bounds rectangle to include the pin icon and a small margin
                     // to the right of the text, for the overlap calculations below.
@@ -297,7 +313,14 @@ public class BenefitsCompassView extends View {
                                 + PLACE_TEXT_MARGIN, textBounds.top + PLACE_TEXT_HEIGHT,
                                 benefitPaint);
                     }
+
+                    double difference = MathUtils.getAngleDifference(bearing, heading);
+                    if (difference < smallestDifference) {
+                        smallestDifference = difference;
+                        front = place;
+                    }
                 }
+                frontBenefit = front;
             }
         }
     }
